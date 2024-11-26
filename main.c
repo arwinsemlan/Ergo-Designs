@@ -3,16 +3,22 @@
 #include <math.h>
 #include <time.h>
 
-int gridspacing = 20;
+int width = 800;
+int height = 600;
+
+double gridspacing = 20;
+float gridspacingworth = 1;
+int originx;
+int originy;
 
 const int frametime = 1000 / 144;
 int framestart;
 
-int points[50][2] = {
-    {100, 100},
-    {700, 100},
-    {700, 500},
-    {100, 500}
+float points[50][2] = {
+    {-10, -10},
+    {10, -10},
+    {10, 10},
+    {-10, 10}
 };
 
 int lines[50][2] = {
@@ -37,7 +43,11 @@ void drawscreen(SDL_Renderer* render) {
     SDL_SetRenderDrawColor(render, 255, 255, 255, 255);
     for (int i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) 
     {
-        SDL_RenderDrawLine(render, points[lines[i][0]][0], points[lines[i][0]][1], points[lines[i][1]][0], points[lines[i][1]][1]);
+        SDL_RenderDrawLine(render, 
+        (points[lines[i][0]][0] / gridspacingworth) * gridspacing + originx,
+        (points[lines[i][0]][1] / gridspacingworth) * gridspacing + originy,
+        (points[lines[i][1]][0] / gridspacingworth) * gridspacing + originx,
+        (points[lines[i][1]][1] / gridspacingworth) * gridspacing + originy);
     }
 
     SDL_RenderPresent(render);
@@ -45,11 +55,14 @@ void drawscreen(SDL_Renderer* render) {
 
 int main(int argc, char *argv[]) 
 {
+    originx = round((float)(width/2)/gridspacing)*gridspacing;
+    originy = round((float)(height/2)/gridspacing)*gridspacing;
+
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
 
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_CreateWindowAndRenderer(800, 600, 0, &window, &renderer);
+    SDL_CreateWindowAndRenderer(width, height, 0, &window, &renderer);
 
     if (window == NULL || renderer == NULL) 
     {
@@ -67,11 +80,14 @@ int main(int argc, char *argv[])
     int newpointx = 0;
     int newpointy = 0;
 
+    double approach = 5;
+
     drawscreen(renderer);
 
     while (1)
     {
         framestart = SDL_GetTicks();
+
         if (SDL_PollEvent(&windowEvent))
         {
             if (SDL_QUIT == windowEvent.type)
@@ -82,8 +98,8 @@ int main(int argc, char *argv[])
             SDL_GetMouseState(&x, &y);
             if (follow) 
             {
-                points[followi][0] = x;
-                points[followi][1] = y;
+                points[followi][0] = (float)(x - originx) / gridspacing;
+                points[followi][1] = (float)(y - originy) / gridspacing;
                 
                 drawscreen(renderer);
             }
@@ -93,7 +109,7 @@ int main(int argc, char *argv[])
                 if (follow == 0)
                 for (int i = 0; i < (sizeof(points) / sizeof(points[0])); i++) 
                 {
-                    if (abs(x - points[i][0]) <= 20 && abs(y - points[i][1]) <= 20) 
+                    if (abs(x - (points[i][0] * gridspacing + originx)) <= 20 && abs(y - (points[i][1] * gridspacing + originy)) <= 20) 
                     {
                         follow = 1;
                         followi = i;
@@ -103,8 +119,8 @@ int main(int argc, char *argv[])
 
             if (windowEvent.type == SDL_MOUSEBUTTONUP && windowEvent.button.button == SDL_BUTTON_LEFT && follow == 1)
             {
-                points[followi][0] = round((float)x/gridspacing)*gridspacing;
-                points[followi][1] = round((float)y/gridspacing)*gridspacing;
+                points[followi][0] = round((float)((x - originx) / gridspacing));
+                points[followi][1] = round((float)((y - originy) / gridspacing));
                 
                 drawscreen(renderer);
 
@@ -140,6 +156,35 @@ int main(int argc, char *argv[])
 
                 waitingforrelease = 0;
             } 
+
+            if (SDL_MOUSEWHEEL == windowEvent.type)
+            {
+                if (windowEvent.wheel.y > 0)
+                {
+                    if (gridspacing >= 45) {
+                        gridspacingworth /= 10;
+                        gridspacing /= 10;
+                    }
+
+                    gridspacing += 5;
+                    originx = round((float)(width/2)/gridspacing)*gridspacing;
+                    originy = round((float)(height/2)/gridspacing)*gridspacing;
+                }
+                else if (windowEvent.wheel.y < 0)
+                {
+                    if (gridspacing - 5 <= 1)
+                    {
+                        gridspacingworth *= 10;
+                        gridspacing *= 10; 
+                    }
+                    gridspacing -= 5;
+                    printf("Grid spacing: %f\n", gridspacing);
+                    originx = round((float)(width/2)/gridspacing)*gridspacing;
+                    originy = round((float)(height/2)/gridspacing)*gridspacing;
+                }
+            
+                drawscreen(renderer);
+            }
         }
         if (SDL_GetTicks() - framestart < frametime)
         {
