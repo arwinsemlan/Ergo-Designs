@@ -8,8 +8,8 @@ int height = 600;
 
 double gridspacing = 20;
 float gridspacingworth = 1;
-int originx;
-int originy;
+int originx = 400;
+int originy = 300;
 
 const int frametime = 1000 / 144;
 int framestart;
@@ -33,12 +33,25 @@ void drawscreen(SDL_Renderer* render) {
     SDL_RenderClear(render); 
 
     SDL_SetRenderDrawColor(render, 10, 10, 10, 255);
-    for (int i = 0; i < 800; i += gridspacing) {
-        SDL_RenderDrawLine(render, i, 0, i, 600);
+    for (int i = originx; i < width; i += gridspacing) 
+    {
+        SDL_RenderDrawLine(render, i, 0, i, height);
     }
-    for (int j = 0; j < 600; j += gridspacing) {
-        SDL_RenderDrawLine(render, 0, j, 800, j);
+    for (int i = originx; i > 0; i -= gridspacing) 
+    {
+        SDL_RenderDrawLine(render, i, 0, i, height);
     }
+    for (int i = originy; i < height; i += gridspacing) 
+    {
+        SDL_RenderDrawLine(render, 0, i, width, i);
+    }
+    for (int i = originy; i > 0; i -= gridspacing) 
+    {
+        SDL_RenderDrawLine(render, 0, i, width, i);
+    }
+
+    SDL_SetRenderDrawColor(render, 255, 0, 0, 255);
+    SDL_RenderDrawPoint(render, originx, originy);
 
     SDL_SetRenderDrawColor(render, 255, 255, 255, 255);
     for (int i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) 
@@ -55,14 +68,12 @@ void drawscreen(SDL_Renderer* render) {
 
 int main(int argc, char *argv[]) 
 {
-    originx = round((float)(width/2)/gridspacing)*gridspacing;
-    originy = round((float)(height/2)/gridspacing)*gridspacing;
-
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
 
     SDL_Init(SDL_INIT_VIDEO);
     SDL_CreateWindowAndRenderer(width, height, 0, &window, &renderer);
+    SDL_SetWindowResizable(window, 1);
 
     if (window == NULL || renderer == NULL) 
     {
@@ -75,6 +86,10 @@ int main(int argc, char *argv[])
     int follow = 0;
     int followi = 0;
 
+    int moving = 0;
+    int middleclickx = 0;
+    int middleclicky = 0;
+
     int waitingforrelease = 0;
     int size = 0;
     int newpointx = 0;
@@ -82,45 +97,67 @@ int main(int argc, char *argv[])
 
     double approach = 5;
 
+    int widthbefore = width;
+    int heightbefore = height;
+
     drawscreen(renderer);
 
     while (1)
     {
         framestart = SDL_GetTicks();
 
+        SDL_GetWindowSize(window, &width, &height);
+
+        if (width != widthbefore || height != heightbefore)
+        {
+            widthbefore = width;
+            heightbefore = height;
+            drawscreen(renderer);
+        }
+        
         if (SDL_PollEvent(&windowEvent))
         {
             if (SDL_QUIT == windowEvent.type)
             {break;}
-            
 
             int x, y;
             SDL_GetMouseState(&x, &y);
-            if (follow) 
+            if (follow)
             {
-                points[followi][0] = (float)(x - originx) / gridspacing;
-                points[followi][1] = (float)(y - originy) / gridspacing;
+                points[followi][0] = (float)(x - originx) / (gridspacing / gridspacingworth);
+                points[followi][1] = (float)(y - originy) / (gridspacing / gridspacingworth);
                 
                 drawscreen(renderer);
             }
+
+            if (moving)
+            {
+                originx += x - middleclickx;
+                originy += y - middleclicky;
+                middleclickx = x;
+                middleclicky = y;
+                drawscreen(renderer);
+            }
+            
 
             if (windowEvent.button.button == SDL_BUTTON_LEFT)
             {
                 if (follow == 0)
                 for (int i = 0; i < (sizeof(points) / sizeof(points[0])); i++) 
                 {
-                    if (abs(x - (points[i][0] * gridspacing + originx)) <= 20 && abs(y - (points[i][1] * gridspacing + originy)) <= 20) 
+                    if (abs(x - ((points[i][0] / gridspacingworth) * gridspacing + originx)) <= 20 && abs(y - ((points[i][1] / gridspacingworth) * gridspacing + originy)) <= 20) 
                     {
                         follow = 1;
                         followi = i;
+                        break;
                     }
                 }
             }
 
             if (windowEvent.type == SDL_MOUSEBUTTONUP && windowEvent.button.button == SDL_BUTTON_LEFT && follow == 1)
             {
-                points[followi][0] = round((float)((x - originx) / gridspacing));
-                points[followi][1] = round((float)((y - originy) / gridspacing));
+                points[followi][0] = (round((float)((x - originx) / (gridspacing)))*gridspacingworth);
+                points[followi][1] = (round((float)((y - originy) / (gridspacing)))*gridspacingworth);
                 
                 drawscreen(renderer);
 
@@ -167,8 +204,6 @@ int main(int argc, char *argv[])
                     }
 
                     gridspacing += 5;
-                    originx = round((float)(width/2)/gridspacing)*gridspacing;
-                    originy = round((float)(height/2)/gridspacing)*gridspacing;
                 }
                 else if (windowEvent.wheel.y < 0)
                 {
@@ -178,12 +213,21 @@ int main(int argc, char *argv[])
                         gridspacing *= 10; 
                     }
                     gridspacing -= 5;
-                    printf("Grid spacing: %f\n", gridspacing);
-                    originx = round((float)(width/2)/gridspacing)*gridspacing;
-                    originy = round((float)(height/2)/gridspacing)*gridspacing;
                 }
             
                 drawscreen(renderer);
+            }
+
+            if (windowEvent.button.button == SDL_BUTTON_MIDDLE && windowEvent.type == SDL_MOUSEBUTTONDOWN)
+            {
+                moving = 1;
+                middleclickx = x;
+                middleclicky = y;
+            }
+
+            if (windowEvent.button.button == SDL_BUTTON_MIDDLE && windowEvent.type == SDL_MOUSEBUTTONUP)
+            {
+                moving = 0;
             }
         }
         if (SDL_GetTicks() - framestart < frametime)
