@@ -203,7 +203,6 @@ int main(int argc, char *argv[])
                 fprintf(fptr, "\n");
                 for (int i = 0; i < 100; i++) {
                     fprintf(fptr, "%d,%d,", lines[i][0], lines[i][1]);
-                    printf("%d,%d,", lines[i][0], lines[i][1]);
                 }
                 fprintf(fptr, "\n");
                 fprintf(fptr, "%d", size);
