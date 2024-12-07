@@ -2,6 +2,9 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#include <string.h>
+
+FILE *fptr; 
 
 int width = 800;
 int height = 600;
@@ -14,19 +17,49 @@ int originy = 300;
 const int frametime = 1000 / 144;
 int framestart;
 
-float points[50][2] = {
+int followi = 0;
+
+int newx;
+int newy;
+
+int line1;
+int line2;
+
+int x;
+int y;
+
+float points[100][2] = {
     {-10, -10},
     {10, -10},
     {10, 10},
     {-10, 10}
 };
 
-int lines[50][2] = {
+int lines[100][2] = {
     {0, 1},
     {1, 2},
     {2, 3},
     {3, 0}
 };
+
+int position = 0;
+
+int findline(int a) {
+    for (int i = 0; i < 50; i++) 
+    {
+        if (lines[i][0] == a) 
+        {
+            position = 0;
+            return i;
+        }
+        if (lines[i][1] == a) 
+        {
+            position = 1;
+            return i;
+        }
+    }
+    return -1;
+}
 
 void drawscreen(SDL_Renderer* render) {
     SDL_SetRenderDrawColor(render, 0, 0, 0, 255);
@@ -51,10 +84,9 @@ void drawscreen(SDL_Renderer* render) {
     }
 
     SDL_SetRenderDrawColor(render, 255, 0, 0, 255);
-    SDL_RenderDrawPoint(render, originx, originy);
 
     SDL_SetRenderDrawColor(render, 255, 255, 255, 255);
-    for (int i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) 
+    for (int i = 0; i < 50; i++) 
     {
         SDL_RenderDrawLine(render, 
         (points[lines[i][0]][0] / gridspacingworth) * gridspacing + originx,
@@ -68,6 +100,54 @@ void drawscreen(SDL_Renderer* render) {
 
 int main(int argc, char *argv[]) 
 {
+    fptr = fopen("keyboard-save.kbdcat", "r");
+    char point[10000];
+    char line[10000];
+    int size = 0;
+    char sizechar[1000];
+    fgets(point, 10000, fptr);
+    fgets(line, 10000, fptr);
+    fgets(sizechar, 1000, fptr);
+    fclose(fptr);
+
+    size = atoi(sizechar);
+
+    char* token = strtok(point, ",");
+
+    for (int i = 0; i < 100; i++)
+    {
+        if (token == NULL)
+        {
+            token = "0";
+        }
+        points[i][0] = atof(token);
+        token = strtok(NULL, ",");
+        if (token == NULL)
+        {
+            token = "0";
+        }
+        points[i][1] = atof(token);
+        token = strtok(NULL, ",");
+    }
+
+    token = strtok(line, ",");
+
+    for (int i = 0; i < 100; i++)
+    {
+        if (token == NULL)
+        {
+            token = "0";
+        }
+        lines[i][0] = atoi(token);
+        token = strtok(NULL, ",");
+        if (token == NULL)
+        {
+            token = "0";
+        }
+        lines[i][1] = atoi(token);
+        token = strtok(NULL, ",");
+    }
+
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
 
@@ -84,18 +164,14 @@ int main(int argc, char *argv[])
     SDL_Event windowEvent;
 
     int follow = 0;
-    int followi = 0;
 
     int moving = 0;
     int middleclickx = 0;
     int middleclicky = 0;
 
     int waitingforrelease = 0;
-    int size = 0;
-    int newpointx = 0;
-    int newpointy = 0;
-
-    double approach = 5;
+    float newpointx = 0;
+    float newpointy = 0;
 
     int widthbefore = width;
     int heightbefore = height;
@@ -118,9 +194,23 @@ int main(int argc, char *argv[])
         if (SDL_PollEvent(&windowEvent))
         {
             if (SDL_QUIT == windowEvent.type)
-            {break;}
+            {
+                fptr = fopen("keyboard-save.kbdcat", "w");
+                for (int i = 0; i < 100; i++) {
+                    fprintf(fptr, "%f,%f,", points[i][0], points[i][1]);
+                    
+                }
+                fprintf(fptr, "\n");
+                for (int i = 0; i < 100; i++) {
+                    fprintf(fptr, "%d,%d,", lines[i][0], lines[i][1]);
+                    printf("%d,%d,", lines[i][0], lines[i][1]);
+                }
+                fprintf(fptr, "\n");
+                fprintf(fptr, "%d", size);
+                fclose(fptr);
+                break;
+            }
 
-            int x, y;
             SDL_GetMouseState(&x, &y);
             if (follow)
             {
@@ -156,29 +246,39 @@ int main(int argc, char *argv[])
 
             if (windowEvent.type == SDL_MOUSEBUTTONUP && windowEvent.button.button == SDL_BUTTON_LEFT && follow == 1)
             {
-                points[followi][0] = (round((float)((x - originx) / (gridspacing)))*gridspacingworth);
-                points[followi][1] = (round((float)((y - originy) / (gridspacing)))*gridspacingworth);
-                
+                float newx = (round((float)((x - originx) / (gridspacing)))*gridspacingworth);
+                float newy = (round((float)((y - originy) / (gridspacing)))*gridspacingworth);
+
+                for (int i = 0; i < (sizeof(points) / sizeof(points[0])); i++) 
+                {
+                    if (i != followi && points[i][0] == newx && points[i][1] == newy) 
+                    {
+                        lines[findline(followi)][position] = i;
+                    }
+                }
+
+                points[followi][0] = newx;
+                points[followi][1] = newy;
+
                 drawscreen(renderer);
 
                 follow = 0;
             }
 
-            if (windowEvent.button.button == SDL_BUTTON_RIGHT && windowEvent.type == SDL_MOUSEBUTTONDOWN)
+            if (windowEvent.button.button == SDL_BUTTON_RIGHT && windowEvent.type == SDL_MOUSEBUTTONDOWN && follow == 0 && waitingforrelease == 0)
             {
-                newpointx = round((float)x/gridspacing)*gridspacing;
-                newpointy = round((float)y/gridspacing)*gridspacing;
+                newpointx = (round((float)((x - originx) / (gridspacing)))*gridspacingworth);
+                newpointy = (round((float)((y - originy) / (gridspacing)))*gridspacingworth);
                 waitingforrelease = 1;
             }
 
-            if (windowEvent.button.button == SDL_BUTTON_RIGHT && windowEvent.type == SDL_MOUSEBUTTONUP && waitingforrelease == 1) 
+            if (windowEvent.button.button == SDL_BUTTON_RIGHT && windowEvent.type == SDL_MOUSEBUTTONUP && waitingforrelease == 1 && follow == 0) 
             {
                 size++;
-                int newpoint2x = round((float)x/gridspacing)*gridspacing;
-                int newpoint2y = round((float)y/gridspacing)*gridspacing;
+                float newpoint2x = round((float)((x - originx) / (gridspacing)))*gridspacingworth;
+                float newpoint2y = round((float)((y - originy) / (gridspacing)))*gridspacingworth;
 
                 
-
                 points[3 + size][0] = newpointx;
                 points[3 + size][1] = newpointy;
                 size++;
@@ -199,22 +299,25 @@ int main(int argc, char *argv[])
                 if (windowEvent.wheel.y > 0)
                 {
                     if (gridspacing >= 45) {
-                        gridspacingworth /= 10;
-                        gridspacing /= 10;
+                        gridspacingworth /= 5;
+                        gridspacing /= 5;
                     }
 
                     gridspacing += 5;
+
+                    originx = x - ((x - originx) * (gridspacing + 5) / gridspacing);
+                    originy = y - ((y - originy) * (gridspacing + 5) / gridspacing);
                 }
                 else if (windowEvent.wheel.y < 0)
                 {
                     if (gridspacing - 5 <= 1)
                     {
-                        gridspacingworth *= 10;
-                        gridspacing *= 10; 
+                        gridspacingworth *= 5;
+                        gridspacing *= 5; 
                     }
                     gridspacing -= 5;
                 }
-            
+
                 drawscreen(renderer);
             }
 
@@ -228,6 +331,22 @@ int main(int argc, char *argv[])
             if (windowEvent.button.button == SDL_BUTTON_MIDDLE && windowEvent.type == SDL_MOUSEBUTTONUP)
             {
                 moving = 0;
+            }
+
+            if (windowEvent.key.keysym.sym == SDLK_d && windowEvent.type == SDL_KEYDOWN && follow == 1)
+            {
+                if (findline(followi) == -1)
+                {
+                    int remove = findline(followi);
+                    lines[remove][0] = -1;
+                    lines[remove][1] = -1;
+                }
+                else
+                {
+                    int remove = findline(followi);
+                    lines[remove][0] = -1;
+                    lines[remove][1] = -1;
+                }
             }
         }
         if (SDL_GetTicks() - framestart < frametime)
